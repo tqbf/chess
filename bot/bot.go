@@ -246,7 +246,7 @@ func (ctx *Context) Incoming() {
 			game.TickFrom = time.Now()
 		}
 
-	case match("([A-Ha-h][1-8])\\s?([A-Ha-h][1-8])", ctx.Text) || chess.AlgebraicRx.MatchString(ctx.Text):
+	case ctx.Text == "O-O" || ctx.Text == "O-O-O" || match("([A-Ha-h][1-8])\\s?([A-Ha-h][1-8])", ctx.Text) || chess.AlgebraicRx.MatchString(ctx.Text):
 		if game.Winner != "" {
 			ctx.Post("%s has already won this game. Reset the game to make moves.", game.Winner)
 			return
@@ -255,7 +255,7 @@ func (ctx *Context) Incoming() {
 		var start, end string
 		var err error
 
-		if chess.AlgebraicRx.MatchString(ctx.Text) {
+		if ctx.Text == "O-O" || ctx.Text == "O-O-O" || chess.AlgebraicRx.MatchString(ctx.Text) {
 			white := false
 			if game.White == ctx.User && game.PlayingWhite {
 				white = true
@@ -344,9 +344,17 @@ func (ctx *Context) Incoming() {
 
 	case match("chess.*history", ctx.Text):
 		out := &bytes.Buffer{}
+		mv := 1
 		for i, move := range game.Moves {
-			fmt.Fprintf(out, "_%d_. *%s*\n", i, move)
+			if i%2 == 0 {
+				fmt.Fprintf(out, "_%d_. *%s*", mv, move)
+			} else {
+				fmt.Fprintf(out, " *%s\n", move)
+				mv += 1
+			}
 		}
+
+		fmt.Fprintf(out, "\n")
 		ctx.Post("All moves:\n%s", out.String())
 
 	case match("board.*([0-9]+)", ctx.Text):
