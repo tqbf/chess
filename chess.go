@@ -125,7 +125,6 @@ func (board board) doDraw(gc draw2d.GraphicContext) {
 	for r := 8; r >= 1; r-- {
 		for c := 'A'; c <= 'H'; c++ {
 			pos := string(c) + string(byte(r+48))
-			_ = pos
 			col := 7 - int('H'-c)
 			yo := float64((8 - r) * 10)
 			xo := float64(col * 10)
@@ -185,7 +184,7 @@ func (board board) Move(starts, stops string) (board, error) {
 		piece = 'Q'
 	}
 
-	board = replace(board, rune(board[start]), stop)
+	board = replace(board, rune(piece), stop)
 	board = replace(board, '_', start)
 	return board, nil
 }
@@ -197,7 +196,6 @@ func Initialize(width int) (draw2d.GraphicContext, image.Image) {
 	gc.SetFontData(draw2d.FontData{Name: "dejavu", Family: draw2d.FontFamilyMono})
 	gc.SetFontSize(10)
 	gc.Scale(float64(dest.Bounds().Max.X)/90.0, float64(dest.Bounds().Max.Y)/90.0)
-	gc.Translate(80/float64(dest.Bounds().Max.X), 0)
 	gc.Translate(10, 0)
 	return gc, dest
 }
