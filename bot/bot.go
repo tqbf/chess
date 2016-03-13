@@ -214,7 +214,7 @@ func (ctx *Context) Incoming() {
 		games[ctx.Channel] = game
 	}
 
-	if !game.Allowed && !match("chess.*ok.*here", ctx.Text) && !match("help.*me.*chessbot", ctx.Text) {
+	if !game.Allowed && !match("yo.*chessbot", ctx.Text) && !match("chess.*ok.*here", ctx.Text) && !match("help.*me.*chessbot", ctx.Text) {
 		return
 	}
 
@@ -257,7 +257,7 @@ func (ctx *Context) Incoming() {
 
 		if chess.AlgebraicRx.MatchString(ctx.Text) {
 			white := false
-			if game.White == ctx.User {
+			if game.White == ctx.User && game.PlayingWhite {
 				white = true
 			} else if game.Black != ctx.User {
 				// don't bother
@@ -303,7 +303,7 @@ func (ctx *Context) Incoming() {
 			game.PlayingWhite = false
 			game.TickFrom = time.Now()
 
-			ctx.DrawBoard(game.Board, "White (%s) moves %s(%s -> %s), white has taken %s total", game.White, start, end, game.WhiteElapsed)
+			ctx.DrawBoard(game.Board, "White (%s) moves %s(%s -> %s), white has taken %s total", game.White, alg, start, end, game.WhiteElapsed)
 
 		} else if ctx.User == game.Black && !game.PlayingWhite {
 			if err := move(); err != nil {
@@ -315,7 +315,7 @@ func (ctx *Context) Incoming() {
 			game.TickFrom = time.Now()
 			game.PlayingWhite = true
 
-			ctx.DrawBoard(game.Board, "Black (%s) moves %s(%s -> %s), black has taken %s total", game.Black, start, end, game.WhiteElapsed)
+			ctx.DrawBoard(game.Board, "Black (%s) moves %s(%s -> %s), black has taken %s total", game.Black, alg, start, end, game.WhiteElapsed)
 		} else {
 			ctx.Post("It's not your turn.")
 		}
@@ -460,11 +460,11 @@ func (ctx *Context) Incoming() {
 		ctx.Post("Are you sure? Say 'definitely reset' if you are.")
 
 	case match("chess.*ok.*here", ctx.Text):
-		game.Allowed = false
+		game.Allowed = true
 		ctx.Post("Ok. I'll allow chess games here.")
 
 	case match("no.*chess.*here", ctx.Text):
-		game.Allowed = true
+		game.Allowed = false
 		ctx.Post("Ok. I won't respond to chess events on this channel.")
 
 	case match("help.*me.*chessbot", ctx.Text):
