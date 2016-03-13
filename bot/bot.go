@@ -349,7 +349,7 @@ func (ctx *Context) Incoming() {
 			if i%2 == 0 {
 				fmt.Fprintf(out, "_%d_. *%s*", mv, move)
 			} else {
-				fmt.Fprintf(out, " *%s\n", move)
+				fmt.Fprintf(out, " *%s*\n", move)
 				mv += 1
 			}
 		}
@@ -374,9 +374,9 @@ func (ctx *Context) Incoming() {
 		}
 
 	case match("i\\s+resign", ctx.Text):
-		if game.PlayingWhite {
+		if game.White == ctx.User {
 			game.Winner = game.Black
-		} else {
+		} else if game.Black == ctx.User {
 			game.Winner = game.White
 		}
 		ctx.Post("*%s* has won the game!", game.Winner)
@@ -495,6 +495,8 @@ _keep playing_: Un-declare a winner
 _move game to #foo_: Move the game to another channel. Stop annoying people.
 _what's up chessbot_: Current status
 _no chess here_: Don't listen for chess stuff on this channel
+
+Remember: you have to /invite me to a channel before I can annoy people on it.
 
 *Please do not pentest chessbot3000.*
 `)
