@@ -1,5 +1,7 @@
 package main
 
+// A simple Slack chessboard bot
+
 import (
 	"bytes"
 	"fmt"
@@ -21,12 +23,16 @@ import (
 	"github.com/llgcode/draw2d/draw2dkit"
 )
 
+// Unicode chess pieces. There's a draw2d-compat ps interpreter that could get us
+// nicer pieces, but it barfs on all the converted PS files I fed it. :(
+// Note that due to a bug in draw2d, we just use the black pieces (colored white and
+// black)
 const (
 	W_KING   = "♔"
 	W_QUEEN  = "♕"
 	W_ROOK   = "♖"
 	W_BISHOP = "♗"
-	W_KNIGHT = "♘"
+	W_KNIGHT = "♘" // misogynist 2d library panics on this character.
 	W_PAWN   = "♙"
 	B_KING   = "♚"
 	B_QUEEN  = "♛"
@@ -36,6 +42,7 @@ const (
 	B_PAWN   = "♟"
 )
 
+// Convert my ASCII chess notation to Unicode chess
 var AsciiMap = map[string]string{
 	"K": B_KING,
 	"Q": B_QUEEN,
@@ -45,10 +52,11 @@ var AsciiMap = map[string]string{
 	"P": B_PAWN,
 }
 
-type board string
+// A Board is a 64-character string representing a chessboard, index 0 is A8, 1 is B8
+type Board string
 
 const (
-	StartingBoard board = `
+	StartingBoard Board = `
 RNBQKBNR
 PPPPPPPP
 ________
@@ -69,17 +77,21 @@ func rgb(r, g, b byte) color.RGBA {
 	}
 }
 
-func (self board) Normalize() board {
+// Normalize converts a formatted string into one we can move pieces on; for now,
+// this just strips spaces.
+func (self Board) Normalize() Board {
 	r := strings.Map(func(r rune) rune {
 		if unicode.IsSpace(r) {
 			return -1
 		}
 		return r
 	}, string(self))
-	return board(r)
+	return Board(r)
 }
 
-func (board board) Position(pos string) (int, error) {
+// Position returns the index into a board at a given chessboard coordinate
+// BUG(tqbf): misnamed.
+func (board Board) Position(pos string) (int, error) {
 	pos = strings.ToUpper(pos)
 
 	if pos[0] < 'A' || pos[0] > 'H' {
@@ -97,7 +109,9 @@ func (board board) Position(pos string) (int, error) {
 	return p, nil
 }
 
-func (board board) PieceAt(pos string) (string, error) {
+// PieceAt returns the ASCII code of the piece at the chessboard coordinate,
+// '_' if no piece, and an error if the coordinate can't be parsed
+func (board Board) PieceAt(pos string) (string, error) {
 	p, err := board.Position(pos)
 	if err == nil {
 		return string(board[p]), nil
@@ -106,18 +120,20 @@ func (board board) PieceAt(pos string) (string, error) {
 }
 
 var (
-	dark  = rgb(101, 63, 55)
-	light = rgb(233, 172, 96)
+	// The chessboard colors
+	Dark  = rgb(101, 63, 55)
+	Light = rgb(233, 172, 96)
 )
 
-func (board board) Draw(width int) image.Image {
-	gc, dest := Initialize(width)
+// Draw draws a chessboard into a width x width square RGBA image
+func (board Board) Draw(width int) image.Image {
+	gc, dest := initializeDrawing(width)
 	board.doDraw(gc)
 	label(gc)
 	return dest
 }
 
-func (board board) doDraw(gc draw2d.GraphicContext) {
+func (board Board) doDraw(gc draw2d.GraphicContext) {
 	gc.SetStrokeColor(&color.RGBA{
 		A: 0,
 	})
@@ -128,10 +144,10 @@ func (board board) doDraw(gc draw2d.GraphicContext) {
 			col := 7 - int('H'-c)
 			yo := float64((8 - r) * 10)
 			xo := float64(col * 10)
-			fill := dark
+			fill := Dark
 
 			if (r%2 == 0 && col%2 == 0) || (r%2 == 1 && col%2 == 1) {
-				fill = light
+				fill = Light
 			}
 
 			gc.SetFillColor(fill)
@@ -155,13 +171,17 @@ func (board board) doDraw(gc draw2d.GraphicContext) {
 	}
 }
 
-func replace(in board, r rune, i int) board {
+func replace(in Board, r rune, i int) Board {
 	out := []rune(string(in))
 	out[i] = r
-	return board(out)
+	return Board(out)
 }
 
-func (board board) Move(starts, stops string) (board, error) {
+// Move moves pieces on a board, returning the new board, or an error if
+// the move is invalid. Takes A8, H1 style coordinates (we don't parse
+// algebraic right now). Does only the most minimal validation. Does
+// handle queen promotion.
+func (board Board) Move(starts, stops string) (Board, error) {
 	start, err := board.Position(starts)
 	if err != nil {
 		return board, err
@@ -189,7 +209,7 @@ func (board board) Move(starts, stops string) (board, error) {
 	return board, nil
 }
 
-func Initialize(width int) (draw2d.GraphicContext, image.Image) {
+func initializeDrawing(width int) (draw2d.GraphicContext, image.Image) {
 	dest := image.NewRGBA(image.Rect(0, 0, (width), (width)))
 	gc := draw2dimg.NewGraphicContext(dest)
 	draw2d.SetFontFolder(".")
@@ -223,20 +243,41 @@ func label(gc draw2d.GraphicContext) {
 	gc.FillStringAt("H", 72, 85)
 }
 
+// Game describes a current running game
 type Game struct {
-	Moves            []string
-	Previous         []board
-	Board            board
-	Black            string
-	White            string
+	// Board is the current chess board
+	Board Board
+
+	// Black is the Slack user NAME (not ID) of the black player.
+	Black string
+	// White is the Slack user NAME (not ID) of the white player; can be same as black
+	White string
+
+	// PlayingWhite is true when it's white's move
+	PlayingWhite bool
+
+	// Winner is the Slack user name of the winning player; the game is over when
+	// there's a winner (no draws right now)
+	Winner string
+
+	// BlackOk and WhiteOk determine whether it is OK to start the game
 	BlackOk, WhiteOk bool
-	PlayingWhite     bool
-	Paused           bool
-	TickFrom         time.Time
-	WhiteElapsed     time.Duration
-	BlackElapsed     time.Duration
-	Disallowed       bool
-	Winner           string
+
+	// TickFrom is the timestamp of the last move
+	TickFrom time.Time
+
+	// WhiteElapsed is how much time has elapsed for white's moves
+	WhiteElapsed time.Duration
+	BlackElapsed time.Duration
+
+	// Disallowed is true if the channel for this game doesn't allow chess events
+	Disallowed bool
+
+	// Moves is the history of all previous moves
+	Moves []string
+
+	// Boards is the history of all previous boards
+	Previous []Board
 }
 
 var games = map[string]*Game{}
@@ -250,6 +291,8 @@ func matches(rxs, message string) []string {
 	return rx.FindStringSubmatch(message)
 }
 
+// Context wraps up the state for a single incoming message, just so we can
+// pass fewer arguments to functions
 type Context struct {
 	Channel string
 	User    string
@@ -257,9 +300,11 @@ type Context struct {
 	API     *slack.Client
 }
 
+// BUG(tqbf): these shouldn't be global variables
 var Channels = map[string]string{}
 var Users = map[string]string{}
 
+// ContextFromEvent creates a Context given the crap we get from the Slack RTM interface
 func ContextFromEvent(api *slack.Client, inf *slack.Info, ev *slack.MessageEvent) *Context {
 	var channel, user string
 	var ok bool
@@ -290,12 +335,14 @@ func ContextFromEvent(api *slack.Client, inf *slack.Info, ev *slack.MessageEvent
 	}
 }
 
+// Post posts a simple text message to the channel on which a message was received
 func (ctx *Context) Post(format string, args ...interface{}) {
 	ctx.API.PostMessage("#"+ctx.Channel, fmt.Sprintf(format, args...), slack.PostMessageParameters{
 		AsUser: true,
 	})
 }
 
+// PostLink posts a text message with an image attachment to the channel on which a message was received
 func (ctx *Context) PostLink(link, title, format string, args ...interface{}) {
 	p := slack.PostMessageParameters{
 		AsUser: true,
@@ -313,16 +360,17 @@ func (ctx *Context) PostLink(link, title, format string, args ...interface{}) {
 	ctx.API.PostMessage("#"+ctx.Channel, text, p)
 }
 
-func (ctx *Context) DrawBoard(board board, format string, args ...interface{}) {
+// DrawBoard posts a message with an attached chess board
+func (ctx *Context) DrawBoard(board Board, format string, args ...interface{}) {
 	dest := board.Draw(400)
 	fn := fmt.Sprintf("/tmp/chess_boards/board%d.png", time.Now().Unix())
 	draw2dimg.SaveToPngFile(fn, dest)
 
-	// url := fmt.Sprintf("http://76a195b3.ngrok.com/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	ctx.PostLink(url, "Game board", fmt.Sprintf(format, args...))
 }
 
+// Incoming handles incoming messages, parses commands, and replies to them
 func (ctx *Context) Incoming() {
 	if ctx.User == "chessbot3000" {
 		return
@@ -508,8 +556,8 @@ _claim_ _white_ (or _black_): Take a side
 _start_: Game starts once both players say this
 _A1 B2_ or _a1b2_: Make a move. *Only minimal validation is done.*
 _take back_: Take a move back
-_history_: See all previous oves
-_board_ <num>: Display board #<num>
+_history_: See all previous moves
+_board_ <num>: Display earlier board #<num>
 _board_: Display the current board
 _reset_: Start over
 _i resign_: Resign the game
@@ -522,30 +570,14 @@ _chess is ok here, thank you_: Allow chess events on this channel
 }
 
 func main() {
-	board := StartingBoard.Normalize()
-
-	board, _ = board.Move("A2", "B3")
-	board, _ = board.Move("E1", "B3")
-
-	dest := board.Draw(400)
-
 	os.Mkdir("/tmp/chess_boards", 0755)
+
 	go func() {
 		panic(http.ListenAndServe(":7777", http.FileServer(http.Dir("/tmp/chess_boards"))))
 	}()
 
-	// Save to file
-	draw2dimg.SaveToPngFile("hello.png", dest)
-
 	api := slack.New(os.Getenv("BOT_TOKEN"))
 	rtm := api.NewRTM()
-
-	// _, _, err := api.PostMessage("#r2", "hello", slack.PostMessageParameters{
-	//  	AsUser: true,
-	// })
-	// if err != nil {
-	//  	panic(err)
-	// }
 
 	go rtm.ManageConnection()
 
@@ -556,9 +588,6 @@ Loop:
 		select {
 		case msg := <-rtm.IncomingEvents:
 			switch ev := msg.Data.(type) {
-			case *slack.HelloEvent:
-				// Ignore hello
-
 			case *slack.ChannelCreatedEvent:
 				Channels[ev.Channel.ID] = ev.Channel.Name
 
@@ -583,12 +612,9 @@ Loop:
 					ctx.Incoming()
 				}
 
+			case *slack.HelloEvent:
 			case *slack.LatencyReport:
-				// fmt.Printf("Current latency: %v\n", ev.Value)
-
 			case *slack.RTMError:
-				// fmt.Printf("Error: %s\n", ev.Error())
-
 			case *slack.InvalidAuthEvent:
 				fmt.Printf("Invalid credentials")
 				break Loop
