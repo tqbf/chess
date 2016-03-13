@@ -338,6 +338,10 @@ func (ctx *Context) Incoming() {
 		games[ctx.Channel] = game
 	}
 
+	if game.Disallowed && !match("chess.*ok.*here", ctx.Text) {
+		return
+	}
+
 	switch {
 	case match("claim.*black", ctx.Text):
 		game.Black = ctx.User
