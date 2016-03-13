@@ -193,7 +193,7 @@ func (ctx *Context) PostLink(link, title, format string, args ...interface{}) {
 // DrawBoard posts a message with an attached chess board
 func (ctx *Context) DrawBoard(board chess.Board, format string, args ...interface{}) {
 	dest := board.Draw(400)
-	fn := fmt.Sprintf("/tmp/chess_boards/board%d.png", time.Now().Unix())
+	fn := fmt.Sprintf("/tmp/chess_boards/board-%s-%d.png", ctx.Channel, time.Now().Unix())
 	draw2dimg.SaveToPngFile(fn, dest)
 
 	url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
