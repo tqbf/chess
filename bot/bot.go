@@ -196,7 +196,8 @@ func (ctx *Context) DrawBoard(board chess.Board, format string, args ...interfac
 	fn := fmt.Sprintf("/tmp/chess_boards/board-%s-%d.png", ctx.Channel, time.Now().Unix())
 	draw2dimg.SaveToPngFile(fn, dest)
 
-	url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	url := fmt.Sprintf("http://76a195b3.ngrok.com/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	// url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	ctx.PostLink(url, "Game board", fmt.Sprintf(format, args...))
 }
 
@@ -460,7 +461,8 @@ func (ctx *Context) Incoming() {
 	case match("definitely.*reset", ctx.Text):
 		ctx.Post("OK. I've reset the game. New players should claim spots and start.")
 		game = &Game{
-			Board: chess.StartingBoard.Normalize(),
+			Board:   chess.StartingBoard.Normalize(),
+			Allowed: true,
 		}
 		games[ctx.Channel] = game
 
