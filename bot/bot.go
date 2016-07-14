@@ -199,7 +199,7 @@ func (ctx *Context) DrawBoard(board chess.Board, reverse bool, hilights []chess.
 	draw2dimg.SaveToPngFile(fn, dest)
 
 	url := fmt.Sprintf("http://9d0189ef.ngrok.io/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
-	// url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	//url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	ctx.PostLink(url, "Game board", fmt.Sprintf(format, args...))
 }
 
@@ -215,6 +215,10 @@ func (ctx *Context) Incoming() {
 			Board: chess.StartingBoard.Normalize(),
 		}
 		games[ctx.Channel] = game
+	}
+
+	clearHi := func() {
+		game.Highlights = []chess.Highlight{}
 	}
 
 	if !game.Allowed && !match("yo.*chessbot", ctx.Text) && !match("chess.*ok.*here", ctx.Text) && !match("help.*me.*chessbot", ctx.Text) {
@@ -279,9 +283,13 @@ func (ctx *Context) Incoming() {
 
 		alg, _ := game.Board.CoordsToAlgebraic(start, end)
 
+		var startPiece, endPiece string
+
 		move := func() error {
-			if pp, err := game.Board.PieceAt(end); err == nil && pp != "_" {
-				fmt.Printf("piece at: %s: %s\n", end, pp)
+			// only used if move is valid, don't bother checking error
+			startPiece, _ = game.Board.PieceAt(start)
+
+			if endPiece, err = game.Board.PieceAt(end); err == nil && endPiece != "_" {
 				c, r, _ := game.Board.Coord(end)
 				game.Highlights = []chess.Highlight{
 					chess.Highlight{
@@ -309,10 +317,28 @@ func (ctx *Context) Incoming() {
 			if alg != "" {
 				game.Moves = append(game.Moves, alg)
 			} else {
-				game.Moves = append(game.Moves, fmt.Sprintf("%s %s", start, end))
+				game.Moves = append(game.Moves, fmt.Sprintf("%s-%s", start, end))
 			}
 			game.Board = board
 			return nil
+		}
+
+		pieceString := func(piece string) string {
+			switch strings.ToUpper(piece) {
+			case "P":
+				return "Pawn"
+			case "R":
+				return "Rook"
+			case "N":
+				return "Knight"
+			case "B":
+				return "Bishop"
+			case "Q":
+				return "Queen"
+			case "K":
+				return "King"
+			}
+			return ""
 		}
 
 		if ctx.User != game.White && ctx.User != game.Black {
@@ -327,7 +353,14 @@ func (ctx *Context) Incoming() {
 			game.PlayingWhite = false
 			game.TickFrom = time.Now()
 
-			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "White (%s) moves %s(%s -> %s), white has taken %s total", game.White, alg, start, end, game.WhiteElapsed)
+			var summary string
+			if endPiece != "_" {
+				summary = fmt.Sprintf("White (%s) *%s takes %s* %s(%s -> %s)", game.White, pieceString(startPiece), pieceString(endPiece), alg, start, end)
+			} else {
+				summary = fmt.Sprintf("White (%s) moves %s(%s -> %s)", game.White, alg, start, end)
+			}
+
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, summary)
 
 		} else if ctx.User == game.Black && !game.PlayingWhite {
 			if err := move(); err != nil {
@@ -354,14 +387,22 @@ func (ctx *Context) Incoming() {
 			return
 		}
 
+		clearHi()
+
 		if ctx.User == game.White && !game.PlayingWhite {
 			game.Board = game.Previous[len(game.Previous)-1]
 			game.PlayingWhite = true
+
 			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "White (%s) takes back %s, white's move again", game.White, game.Moves[len(game.Moves)-1])
+
+			game.Moves = game.Moves[0 : len(game.Moves)-1]
+
 		} else if ctx.User == game.Black && game.PlayingWhite {
 			game.Board = game.Previous[len(game.Previous)-1]
 			game.PlayingWhite = false
 			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "Black (%s) takes back %s, black's move again", game.Black, game.Moves[len(game.Moves)-1])
+
+			game.Moves = game.Moves[0 : len(game.Moves)-1]
 		} else {
 			ctx.Post("You can't take a move back.")
 		}
@@ -387,6 +428,8 @@ func (ctx *Context) Incoming() {
 		if which > len(game.Previous) {
 			ctx.Post("I can't fetch previous board %d", which)
 		}
+
+		clearHi()
 
 		ctx.DrawBoard(game.Previous[which], !game.PlayingWhite, game.Highlights, "Previous board #%d (type 'board' for current board)", which)
 
@@ -510,9 +553,9 @@ _start_: Game starts once both players say this
 _A1 B2_ or _a1b2_: Make a move. *Only minimal validation is done.*
 _take back_: Take a move back
 _knock out D4_: Take the pawn at D4 en passant (or, you know, any other square)
-_history_: See all previous moves
+_chess history_: See all previous moves
 _board_ <num>: Display earlier board #<num>
-_board_: Display the current board
+_chess board_: Display the current board
 _reset game_: Start over
 _i resign_: Resign the game
 _black_ (or _white_) _wins_: Declare a winner
