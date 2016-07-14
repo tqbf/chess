@@ -372,7 +372,14 @@ func (ctx *Context) Incoming() {
 			game.TickFrom = time.Now()
 			game.PlayingWhite = true
 
-			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "Black (%s) moves %s(%s -> %s), black has taken %s total", game.Black, alg, start, end, game.WhiteElapsed)
+			var summary string
+			if endPiece != "_" {
+				summary = fmt.Sprintf("Black (%s) *%s takes %s* %s(%s -> %s)", game.Black, pieceString(startPiece), pieceString(endPiece), alg, start, end)
+			} else {
+				summary = fmt.Sprintf("Black (%s) moves %s(%s -> %s)", game.Black, alg, start, end)
+			}
+
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, summary)
 		} else {
 			ctx.Post("It's not your turn.")
 		}
