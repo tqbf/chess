@@ -198,8 +198,8 @@ func (ctx *Context) DrawBoard(board chess.Board, reverse bool, hilights []chess.
 	fn := fmt.Sprintf("/tmp/chess_boards/board-%s-%d.png", ctx.Channel, time.Now().Unix())
 	draw2dimg.SaveToPngFile(fn, dest)
 
-	url := fmt.Sprintf("http://9d0189ef.ngrok.io/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
-	//url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	//url := fmt.Sprintf("http://9d0189ef.ngrok.io/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	ctx.PostLink(url, "Game board", fmt.Sprintf(format, args...))
 }
 
