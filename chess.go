@@ -68,6 +68,20 @@ func (board Board) Position(pos string) (int, error) {
 	return p, nil
 }
 
+func (board Board) Coord(pos string) (rune, int, error) {
+	pos = strings.ToUpper(pos)
+
+	if pos[0] < 'A' || pos[0] > 'H' {
+		return ' ', 0, fmt.Errorf("bad column '%s'", string(pos[0]))
+	}
+
+	if pos[1] < '1' || pos[1] > '8' {
+		return ' ', 0, fmt.Errorf("bad row '%s'", string(pos[1]))
+	}
+
+	return rune(pos[0]), int(pos[1] - 48), nil
+}
+
 // PieceAt returns the ASCII code of the piece at the chessboard coordinate,
 // '_' if no piece, and an error if the coordinate can't be parsed
 func (board Board) PieceAt(pos string) (string, error) {

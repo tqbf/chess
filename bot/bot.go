@@ -77,6 +77,8 @@ type Game struct {
 	// Board is the current chess board
 	Board chess.Board
 
+	Highlights []chess.Highlight
+
 	// Black is the Slack user NAME (not ID) of the black player.
 	Black string
 	// White is the Slack user NAME (not ID) of the white player; can be same as black
@@ -191,12 +193,12 @@ func (ctx *Context) PostLink(link, title, format string, args ...interface{}) {
 }
 
 // DrawBoard posts a message with an attached chess board
-func (ctx *Context) DrawBoard(board chess.Board, format string, args ...interface{}) {
-	dest := board.Draw(400)
+func (ctx *Context) DrawBoard(board chess.Board, reverse bool, hilights []chess.Highlight, format string, args ...interface{}) {
+	dest := board.Draw(400, reverse, hilights)
 	fn := fmt.Sprintf("/tmp/chess_boards/board-%s-%d.png", ctx.Channel, time.Now().Unix())
 	draw2dimg.SaveToPngFile(fn, dest)
 
-	url := fmt.Sprintf("http://76a195b3.ngrok.com/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
+	url := fmt.Sprintf("http://9d0189ef.ngrok.io/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	// url := fmt.Sprintf("http://sockpuppet.org:7777/%s", strings.Replace(fn, "/tmp/chess_boards/", "", -1))
 	ctx.PostLink(url, "Game board", fmt.Sprintf(format, args...))
 }
@@ -278,6 +280,27 @@ func (ctx *Context) Incoming() {
 		alg, _ := game.Board.CoordsToAlgebraic(start, end)
 
 		move := func() error {
+			if pp, err := game.Board.PieceAt(end); err == nil && pp != "_" {
+				fmt.Printf("piece at: %s: %s\n", end, pp)
+				c, r, _ := game.Board.Coord(end)
+				game.Highlights = []chess.Highlight{
+					chess.Highlight{
+						Row:  r,
+						Col:  c,
+						Kind: chess.HI_CAPTURED,
+					},
+				}
+			} else {
+				c, r, _ := game.Board.Coord(end)
+				game.Highlights = []chess.Highlight{
+					chess.Highlight{
+						Row:  r,
+						Col:  c,
+						Kind: chess.HI_MOVED,
+					},
+				}
+			}
+
 			board, err := game.Board.Move(start, end)
 			if err != nil {
 				return err
@@ -304,7 +327,7 @@ func (ctx *Context) Incoming() {
 			game.PlayingWhite = false
 			game.TickFrom = time.Now()
 
-			ctx.DrawBoard(game.Board, "White (%s) moves %s(%s -> %s), white has taken %s total", game.White, alg, start, end, game.WhiteElapsed)
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "White (%s) moves %s(%s -> %s), white has taken %s total", game.White, alg, start, end, game.WhiteElapsed)
 
 		} else if ctx.User == game.Black && !game.PlayingWhite {
 			if err := move(); err != nil {
@@ -316,7 +339,7 @@ func (ctx *Context) Incoming() {
 			game.TickFrom = time.Now()
 			game.PlayingWhite = true
 
-			ctx.DrawBoard(game.Board, "Black (%s) moves %s(%s -> %s), black has taken %s total", game.Black, alg, start, end, game.WhiteElapsed)
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "Black (%s) moves %s(%s -> %s), black has taken %s total", game.Black, alg, start, end, game.WhiteElapsed)
 		} else {
 			ctx.Post("It's not your turn.")
 		}
@@ -334,11 +357,11 @@ func (ctx *Context) Incoming() {
 		if ctx.User == game.White && !game.PlayingWhite {
 			game.Board = game.Previous[len(game.Previous)-1]
 			game.PlayingWhite = true
-			ctx.DrawBoard(game.Board, "White (%s) takes back %s, white's move again", game.White, game.Moves[len(game.Moves)-1])
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "White (%s) takes back %s, white's move again", game.White, game.Moves[len(game.Moves)-1])
 		} else if ctx.User == game.Black && game.PlayingWhite {
 			game.Board = game.Previous[len(game.Previous)-1]
 			game.PlayingWhite = false
-			ctx.DrawBoard(game.Board, "Black (%s) takes back %s, black's move again", game.Black, game.Moves[len(game.Moves)-1])
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "Black (%s) takes back %s, black's move again", game.Black, game.Moves[len(game.Moves)-1])
 		} else {
 			ctx.Post("You can't take a move back.")
 		}
@@ -365,13 +388,13 @@ func (ctx *Context) Incoming() {
 			ctx.Post("I can't fetch previous board %d", which)
 		}
 
-		ctx.DrawBoard(game.Previous[which], "Previous board #%d (type 'board' for current board)", which)
+		ctx.DrawBoard(game.Previous[which], !game.PlayingWhite, game.Highlights, "Previous board #%d (type 'board' for current board)", which)
 
 	case match("chess.*board", ctx.Text):
 		if game.PlayingWhite {
-			ctx.DrawBoard(game.Board, "The current board; it's white's (%s) move", game.White)
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "The current board; it's white's (%s) move", game.White)
 		} else {
-			ctx.DrawBoard(game.Board, "The current board; it's black's (%s) move", game.Black)
+			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, "The current board; it's black's (%s) move", game.Black)
 		}
 
 	case match("i\\s+resign", ctx.Text):
@@ -497,6 +520,7 @@ _keep playing_: Un-declare a winner
 _move game to #foo_: Move the game to another channel. Stop annoying people.
 _what's up chessbot_: Current status
 _no chess here_: Don't listen for chess stuff on this channel
+_bing bong_
 
 Remember: you have to /invite me to a channel before I can annoy people on it.
 

@@ -42,17 +42,30 @@ var (
 	// The chessboard colors
 	Dark  = rgb(101, 63, 55)
 	Light = rgb(233, 172, 96)
+	Red   = rgb(212, 16, 33)
+	Green = rgb(34, 169, 66)
 )
 
+const (
+	HI_CAPTURED = iota
+	HI_MOVED
+)
+
+type Highlight struct {
+	Kind int
+	Row  int
+	Col  rune
+}
+
 // Draw draws a chessboard into a width x width square RGBA image
-func (board Board) Draw(width int) image.Image {
+func (board Board) Draw(width int, reverse bool, highlights []Highlight) image.Image {
 	gc, dest := initializeDrawing(width)
-	board.doDraw(gc)
-	label(gc)
+	board.doDraw(gc, reverse, highlights)
+	label(gc, reverse)
 	return dest
 }
 
-func (board Board) doDraw(gc draw2d.GraphicContext) {
+func (board Board) doDraw(gc draw2d.GraphicContext, reverse bool, highlights []Highlight) {
 	gc.SetStrokeColor(&color.RGBA{
 		A: 0,
 	})
@@ -61,12 +74,41 @@ func (board Board) doDraw(gc draw2d.GraphicContext) {
 		for c := 'A'; c <= 'H'; c++ {
 			pos := string(c) + string(byte(r+48))
 			col := 7 - int('H'-c)
+
 			yo := float64((8 - r) * 10)
 			xo := float64(col * 10)
+			if reverse {
+				yo = float64((r - 1) * 10)
+				xo = ((7.0 - float64(col)) * 10.0)
+			}
+
 			fill := Dark
 
 			if (r%2 == 0 && col%2 == 0) || (r%2 == 1 && col%2 == 1) {
 				fill = Light
+			}
+
+			hilit := false
+			for _, v := range highlights {
+				if r == v.Row && c == v.Col {
+					switch v.Kind {
+					case HI_CAPTURED:
+						gc.SetStrokeColor(Red)
+					case HI_MOVED:
+						fallthrough
+					default:
+						gc.SetStrokeColor(Green)
+					}
+
+					hilit = true
+					break
+				}
+			}
+
+			if hilit {
+				gc.SetLineWidth(1.5)
+			} else {
+				gc.SetLineWidth(0)
 			}
 
 			gc.SetFillColor(fill)
@@ -101,25 +143,45 @@ func initializeDrawing(width int) (draw2d.GraphicContext, image.Image) {
 	return gc, dest
 }
 
-func label(gc draw2d.GraphicContext) {
+func label(gc draw2d.GraphicContext, reverse bool) {
 	gc.SetFillColor(rgb(100, 100, 100))
 	gc.SetFontSize(4)
 
-	gc.FillStringAt("8", -4, 9)
-	gc.FillStringAt("7", -4, 19)
-	gc.FillStringAt("6", -4, 29)
-	gc.FillStringAt("5", -4, 39)
-	gc.FillStringAt("4", -4, 49)
-	gc.FillStringAt("3", -4, 59)
-	gc.FillStringAt("2", -4, 69)
-	gc.FillStringAt("1", -4, 79)
+	if !reverse {
+		gc.FillStringAt("8", -4, 9)
+		gc.FillStringAt("7", -4, 19)
+		gc.FillStringAt("6", -4, 29)
+		gc.FillStringAt("5", -4, 39)
+		gc.FillStringAt("4", -4, 49)
+		gc.FillStringAt("3", -4, 59)
+		gc.FillStringAt("2", -4, 69)
+		gc.FillStringAt("1", -4, 79)
 
-	gc.FillStringAt("A", 2, 85)
-	gc.FillStringAt("B", 12, 85)
-	gc.FillStringAt("C", 22, 85)
-	gc.FillStringAt("D", 32, 85)
-	gc.FillStringAt("E", 42, 85)
-	gc.FillStringAt("F", 52, 85)
-	gc.FillStringAt("G", 62, 85)
-	gc.FillStringAt("H", 72, 85)
+		gc.FillStringAt("A", 2, 85)
+		gc.FillStringAt("B", 12, 85)
+		gc.FillStringAt("C", 22, 85)
+		gc.FillStringAt("D", 32, 85)
+		gc.FillStringAt("E", 42, 85)
+		gc.FillStringAt("F", 52, 85)
+		gc.FillStringAt("G", 62, 85)
+		gc.FillStringAt("H", 72, 85)
+	} else {
+		gc.FillStringAt("1", -4, 9)
+		gc.FillStringAt("2", -4, 19)
+		gc.FillStringAt("3", -4, 29)
+		gc.FillStringAt("4", -4, 39)
+		gc.FillStringAt("5", -4, 49)
+		gc.FillStringAt("6", -4, 59)
+		gc.FillStringAt("7", -4, 69)
+		gc.FillStringAt("8", -4, 79)
+
+		gc.FillStringAt("H", 2, 85)
+		gc.FillStringAt("G", 12, 85)
+		gc.FillStringAt("F", 22, 85)
+		gc.FillStringAt("E", 32, 85)
+		gc.FillStringAt("D", 42, 85)
+		gc.FillStringAt("C", 52, 85)
+		gc.FillStringAt("B", 62, 85)
+		gc.FillStringAt("A", 72, 85)
+	}
 }
