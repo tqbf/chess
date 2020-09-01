@@ -374,9 +374,9 @@ func (ctx *Context) Incoming() {
 
 			var summary string
 			if endPiece != "_" {
-				summary = fmt.Sprintf("Black (%s) *%s takes %s* %s(%s -> %s)", game.White, pieceString(startPiece), pieceString(endPiece), alg, start, end)
+				summary = fmt.Sprintf("Black (%s) *%s takes %s* %s(%s -> %s)", game.Black, pieceString(startPiece), pieceString(endPiece), alg, start, end)
 			} else {
-				summary = fmt.Sprintf("Black (%s) moves %s(%s -> %s)", game.White, alg, start, end)
+				summary = fmt.Sprintf("Black (%s) moves %s(%s -> %s)", game.Black, alg, start, end)
 			}
 
 			ctx.DrawBoard(game.Board, !game.PlayingWhite, game.Highlights, summary)
